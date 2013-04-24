@@ -1,9 +1,19 @@
 # File: galois.py
 # Author: Christopher Wood
-# Description: TODO
 # NOTE: all polynomials are stored as little endian lists of coefficients
 
+# For object serialization
 import pickle
+
+# For profiling purposes
+import time
+import sys
+
+# Exception handling
+import traceback
+
+# For external, friendly utilities that are "galois-free" ;)
+from galois_util import *
 
 class GFElem:
 	def __init__(self, coefficients, binString = None, id = -1, base = -1, exp = -1): 
@@ -89,7 +99,7 @@ class GFElem:
 	def isUnit(self):
 		if (len(self.coeff) == 0):
 			return False
-		elif (self.coeff[0] == 1 and len(self.coeff) == 1):
+		elif (self.coeff[0] == 1 and self.degree() == 0):
 			return True
 		else:
 			return False
@@ -119,6 +129,13 @@ class GFElem:
 			return self.coeff[i]
 		else:
 			raise TypeError() # big big problem.
+
+	def wt(self):
+		count = 0
+		for c in self.coeff:
+			if (c > 0):
+				count = count + c
+		return count
 
 	def __eq__(self, other):
 		if isinstance(other, GFElem):
@@ -160,7 +177,14 @@ class GFElem:
 		return poly
 
 class GFExtensionElem:
-	def __init__(self, coefficients):
+	def __init__(self, coefficients, binString = None, smallSize = 0):
+		if (binString != None and smallSize > 0):
+			coefficients = []
+			if (len(binString) % 2 != 0):
+				raise Exception("Invalid binary string in GFExtensionElem constructor")
+			num = len(binString) / smallSize
+			for i in range(num):
+				coefficients.append(GFElem([], binString = binString[smallSize*i:smallSize*i + smallSize]))
 		self.coeff = []
 		coefficients = self.prune(coefficients[:])
 		for i in range(len(coefficients) - 1, -1, -1):
@@ -240,7 +264,7 @@ class GFExtensionElem:
 	def isUnit(self):
 		if (len(self.coeff) == 0):
 			return False
-		elif (self.coeff[0] == 1 and len(self.coeff) == 1):
+		elif (self.coeff[0].isUnit() and len(self.coeff) == 1):
 			return True
 		else:
 			return False
@@ -260,7 +284,7 @@ class GFExtensionElem:
 			subString = c.bin()
 			if (len(subString) < n):
 				subString = subString + ("0" * (n - len(subString)))
-			result = result + subString
+			result = result + subString[::-1]
 		return result[::-1]
 
 	def copy(self):
@@ -395,6 +419,7 @@ class GF:
 		lasty = GFElem([0])
 
 		while not (rem.isZero()):
+			# print(rem)
 			tmp = rem.copy()
 			quotient, rem = self.g_div(lastRem, rem)
 			lastRem = tmp
@@ -408,22 +433,29 @@ class GF:
 		return lastRem, lastx, lasty
 
 	def power(self, x, k):
-		exp = GFElem([1])
+		val = GFElem([1])
+		exp = bin(k)[2:][::-1] # put the exponent in reverse order
 		if k < 0:
 			raise TypeError() 
 		else:
-			for i in range(k):
-				exp = self.g_mult(exp, x)
-			return exp
+			# for i in range(k):
+			# 	val = self.g_mult(val, x)
+			for i in range(len(exp)):
+				if (exp[i] == '1'):
+					val = self.g_mult(val, x)
+				x = self.g_mult(x, x)
+			return val
 
 	def findOrder(self, g): # works for fields with base = 2 (characteristic)
-		p = []
-		gg = g
-		for j in range (self.exp):
-			p.append(gg % self.base)
-			gg = gg / self.base
-		p.reverse()
-		gen = GFElem(p)
+		# p = []
+		# gg = g
+		# for j in range (self.exp):
+		# 	p.append(gg % self.base)
+		# 	gg = gg / self.base
+		# p.reverse()
+
+		coeff = createBaseElem(self.base, g, self.exp)
+		gen = GFElem(coeff)
 		curr = self.g_mult(gen, gen)
 		cycled = False
 		counter = 1
@@ -438,13 +470,49 @@ class GF:
 				curr = self.g_mult(gen, curr)
 		return (gen, counter)
 
-	def findGenerators(self):
+	def isGenerator(self, gen):
+		order = self.getOrder()
+		factors = primeFactors(order - 1)
+		combs = []
+		for i in factors:
+			for j in factors:
+				prod = i * j
+				if (prod < order):
+					combs.append(prod)
+		print("New run.")
+		if (gen.isUnit()):
+			return False
+		for i in factors:
+			x = self.power(gen, i)
+			print("Found: " + str(x))
+			if (x.isUnit() or x.isZero()):
+				return False
+		for i in combs:
+			x = self.power(gen, i)
+			print("Found: " + str(x))
+			if (x.isUnit() or x.isZero()):
+				return False
+		return True
+
+	def findGenerators(self, earlyTerm = False):
 		fieldOrder = self.getOrder()
 		gens = []
 		for i in range(fieldOrder):
+			# coeff = createBaseElem(self.base, i, self.exp)
+			# gen = GFElem(coeff)
+			# # print(gen)
+			# if (self.isGenerator(gen)):
+			# 	print("GENERATOR: " + str(gen) + " FOR " + str(self.ip))
+			# 	print(self.findOrder(i))
+			# 	gens.append(gen)
+			# 	if (earlyTerm):
+			# 		print(gen)
+			# 		return gens
 			elemOrder = self.findOrder(i)
 			if (elemOrder[1] == (fieldOrder - 1)): # it's a generator...
 				gens.append(elemOrder[0]) 
+				if (earlyTerm): # early termination for polynomial generation code
+					return gens
 		return gens
 
 	def isRoot(self, x):
@@ -558,7 +626,7 @@ class GFExtension:
 			gg = gg / subOrder
 		p.reverse()
 		gen = GFExtensionElem(p)
-		#print("Finding order of: " + str(gen))
+		print >> sys.stderr, "Trying: " + str(gen)
 		curr = self.g_mult(gen, gen)
 		cycled = False
 		counter = 1
@@ -573,27 +641,37 @@ class GFExtension:
 				curr = self.g_mult(gen, curr)
 		return (gen, counter)
 
-	def findGenerators(self):
+	def findGenerators(self, earlyTerm = False):
 		fieldOrder = self.baseField.getOrder() ** self.extension
 		gens = []
-		for i in range(fieldOrder):
+		# print >> sys.stderr, str(fieldOrder)
+		for i in range(2 ** self.getN(), fieldOrder): # start with at least one y coefficient (that's a requirement for a primitive element)
 			try:
+				# print >> sys.stderr, "Trying: " + str(i)
 				elemOrder = self.findOrder(i)
-				# print(elemOrder[1])
-				if (elemOrder[1] == (fieldOrder - 1)): # it's a generator...
-					gens.append(elemOrder[0]) 
-			except:
+				if (elemOrder[1] == (fieldOrder - 1)): 
+					gens.append(elemOrder[0])
+					if (earlyTerm):
+						return gens
+			except Exception as e:
+				# print >> sys.stderr, "Error in GFExtension.findGenerators: " + str(e)
+				# traceback.print_exc(limit=2,file=sys.stderr)
 				pass
 		return gens
 
 	def power(self, x, k):
-		e = GFExtensionElem([GFElem([1])])
+		val = GFExtensionElem([GFElem([1])])
+		exp = bin(k)[2:][::-1] # put the exponent in reverse order
 		if k < 0:
 			raise TypeError() 
 		else:
-			for i in range(k):
-				e = self.g_mult(e, x)
-			return e
+			# for i in range(k):
+			# 	val = self.g_mult(e, x)
+			for i in range(len(exp)):
+				if (exp[i] == '1'):
+					val = self.g_mult(val, x)
+				x = self.g_mult(x, x)
+			return val
 
 	def getN(self):
 		return self.baseField.getExp()
@@ -730,46 +808,40 @@ def test2():
 	for g in gens:
 		print(g)
 
-	x = GFElem([1,1,0,1,0,0,0,0])
-	xInv = neField.inverse(x)
-	print("x and inverse")
-	print(x)
-	print(xInv)
-	mult = neField.g_mult(x, xInv)
-	print(mult)
-	y = GFElem([1,0,0,0,1,0,0])
-	# mult = neField.g_mult(x, y)
-	# print(str(x) + " * " + str(y) + " = " + str(mult))
+	# x = GFElem([1,1,0,1,0,0,0,0])
+	# xInv = neField.inverse(x)
+	# print("x and inverse")
+	# print(x)
+	# print(xInv)
+	# mult = neField.g_mult(x, xInv)
+	# print(mult)
+	# y = GFElem([1,0,0,0,1,0,0])
+	# # mult = neField.g_mult(x, y)
+	# # print(str(x) + " * " + str(y) + " = " + str(mult))
 
-	x = GFExtensionElem([GFElem([1,1,1,0]), GFElem([1,0,1,0])])
-	y = GFExtensionElem([GFElem([1,1,1]), GFElem([1,0,0,0])])
-	# mult = eField.g_mult(x, y)
-	# print(str(x) + " * " + str(y) + " = " + str(mult))
+	# x = GFExtensionElem([GFElem([1,1,1,0]), GFElem([1,0,1,0])])
+	# y = GFExtensionElem([GFElem([1,1,1]), GFElem([1,0,0,0])])
+	# # mult = eField.g_mult(x, y)
+	# # print(str(x) + " * " + str(y) + " = " + str(mult))
 
-	N = GFExtensionElem([GFElem([1,1,0,0]), GFElem([1,0,1,0]), GFElem([1,1,1,1])])
-	D = GFExtensionElem([GFElem([1]), GFElem([1]), GFElem([1,1,0,0])])
-	# y = GFExtensionElem([GFElem([1]), GFElem([1]), GFElem([1,1,0,0])])
-	# print(y.shiftLeft(1))
-	# print(y.shiftLeft(2))
+	# N = GFExtensionElem([GFElem([1,1,0,0]), GFElem([1,0,1,0]), GFElem([1,1,1,1])])
+	# D = GFExtensionElem([GFElem([1]), GFElem([1]), GFElem([1,1,0,0])])
+	# # y = GFExtensionElem([GFElem([1]), GFElem([1]), GFElem([1,1,0,0])])
+	# # print(y.shiftLeft(1))
+	# # print(y.shiftLeft(2))
 
-	ip = GFElem([1,1,1])
-	smallField = GF(2,2,ip)
-	eIp = GFExtensionElem([GFElem([1]), GFElem([1]), GFElem([1,0])])
-	eField = GFExtension(smallField, 2, eIp)
-	print(eField)
-	gens = eField.findGenerators()
-	print("Displaying generators:")
-	for g in gens:
-		print(g)
+	# ip = GFElem([1,1,1])
+	# smallField = GF(2,2,ip)
+	# eIp = GFExtensionElem([GFElem([1]), GFElem([1]), GFElem([1,0])])
+	# eField = GFExtension(smallField, 2, eIp)
+	# print(eField)
+	# gens = eField.findGenerators()
+	# print("Displaying generators:")
+	# for g in gens:
+	# 	print(g)
 
-# Main entry point - just runs one of the tests if this file
-# is ever started directly
-def main():
-	test2()
-
-	return
-
-	ip = GFElem([1,0,0,1,1]) #4 1 0
+def testIsRoot():
+	ip = GFElem([1,0,0,1,1]) # 4 1 0
 	bigField = GF(2,4,ip)
 	neIp = GFElem([1,1,1]) # 2 1 0
 	neField = GF(2,2,neIp)
@@ -779,6 +851,71 @@ def main():
 	print(eField)
 	print(bigField.isRoot(GFElem([1,0])))
 	print(bigField.isExtensionRoot(GFExtensionElem([GFElem([1]),GFElem([0])]), eField))
+
+def findBigRoot():
+	ip = GFElem([]) # 4 1 0
+	bigField = GF(2,16,ip)
+	neIp = GFElem([1,0,0,0,1,1,1,0,1]) # 8 4 3 2 0
+	neField = GF(2,8,neIp)
+	eIp = GFExtensionElem([GFElem([1]), GFElem([1]), GFElem([1, 0])]) # 2 1 {1}0
+	eField = GFExtension(neField, 2, eIp)
+
+def testPower():
+	''' Simple test for the efficiency of the new multiplication algorithm.
+	'''
+	ip = GFElem([1,0,0,0,0,0,0,0,0,0,0,1,0,1,1,0,1]) # x^4 + x + 1
+	smallField = GF(2, 16, ip)
+	x = GFElem([1,0,1])
+
+	start = time.time()
+	val = smallField.g_mult(x, x)
+	for i in range(100):
+		val = smallField.g_mult(x, val)
+	end = time.time()
+
+	start2 = time.time()
+	val2 = smallField.power(x, 102)
+	end2 = time.time()
+
+	print(str(x) + " cubed = " + str(val) + ", " + str(end - start))
+	print(str(x) + " cubed = " + str(val2) + ", " + str(end2 - start2))
+
+	# Now test for extension fields...
+	ip = GFElem([1,0,0,1,1]) # x^4 + x + 1
+	smallField = GF(2, 4, ip)
+	eIp = GFExtensionElem([GFElem([1]), GFElem([1]), GFElem([1,1,0,0])]) # x^2 + x + 1100
+	eField = GFExtension(smallField, 2, eIp) # GF((2^4)^2)
+
+	x = GFExtensionElem([GFElem([1,0,1]),GFElem([1,1,1])])
+
+	start = time.time()
+	val = eField.g_mult(x, x)
+	for i in range(100):
+		val = eField.g_mult(x, val)
+	end = time.time()
+
+	start2 = time.time()
+	val2 = eField.power(x, 102)
+	end2 = time.time()
+
+	print(str(x) + " cubed = " + str(val) + ", " + str(end - start))
+	print(str(x) + " cubed = " + str(val2) + ", " + str(end2 - start2))
+
+def testIsGenerator():
+	# ip = GFElem([1,0,0,0,0,0,0,0,0,0,0,1,0,1,1,0,1]) # x^4 + x + 1
+	# smallField = GF(2, 16, ip)
+	ip = GFElem([1,0,0,0,1,1,0,1,1]) #x^8 + x^4 + x^3 + x + 1
+	field = GF(2, 8, ip) # GF(2^8)
+	gen  = GFElem([1,1])
+	print(field.isGenerator(gen))
+	gen  = GFElem([1,0])
+	print(field.isGenerator(gen))
+	print(len(field.findGenerators()))
+
+# Main entry point - just runs one of the tests if this file
+# is ever started directly
+def main():
+	test2()
 
 if __name__ == "__main__":
 	main()
