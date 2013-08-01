@@ -1,10 +1,15 @@
+import pickle
+
 class FF:
 	''' Class for generic finite fields which can support arbitrary extensions
 	and arithmetic in different bases.
 	'''
 	def __init__(self, base, exp = 1, ip = None):
 		if (type(base) is int):
-			self.isGround = True
+
+			# TODO: implement isPrime() method
+
+			self.isGroundField = True
 			self.ground = base
 		elif (type(base) is FF):
 			# Test for irreducibility over base field
@@ -15,22 +20,22 @@ class FF:
 		raise Exception("TODO")
 
 	def op_add(self, x, y):
-		if (self.isGround):
+		if (self.isGroundField):
 			return (x + y) % self.ground
 		raise Exception("TODO")
 
 	def op_sub(self, x, y):
-		if (self.isGround):
+		if (self.isGroundField):
 			return (x - y) % self.ground
 		raise Exception("TODO")
 
 	def op_mul(self, x, y):
-		if (self.isGround):
+		if (self.isGroundField):
 			return (x * y) % self.ground
 		raise Exception("TODO")
 
 	def op_rem(self, x):
-		if (self.isGround):
+		if (self.isGroundField):
 			return x % self.ground
 		raise Exception("TODO")
 
@@ -44,7 +49,7 @@ class FF:
 		raise Exception("TODO")
 
 	def op_pow(self, x, k):
-		if (self.isGround):
+		if (self.isGroundField):
 			return (x ** k) % self.ground
 		raise Exception("TODO")
 
