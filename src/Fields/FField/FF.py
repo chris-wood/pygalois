@@ -1,20 +1,32 @@
 import pickle
+import sys
 
 class FF:
 	''' Class for generic finite fields which can support arbitrary extensions
 	and arithmetic in different bases.
 	'''
 	def __init__(self, base, exp = 1, ip = None):
-		if (type(base) is int):
+		if (type(base) is int and exp == 1):
 
 			# TODO: check if base is prime, otherwise not cyclic and can't be used to create the field
 
-			self.isGroundField = True
+			self.isGroundField = True # only true if type(base) is int
 			self.ground = base
+		elif (type(base) is int):
+
+			# TODO: check if base is prime, otherwise not cyclic and can't be used to create the field
+
+			self.ground = FF(base, 1, None) # Force the base field to be GF(p), where p is the base
+			self.isGroundField = False
+			self.arithmetic = FFPolynomialBasisArithmetic
+
+
 		elif (type(base) is FF):
 			# Test for irreducibility over base field
 			# Irreducibility test: http://en.wikipedia.org/wiki/Factorization_of_polynomials_over_finite_fields#Rabin.27s_test_of_irreducibility
 			# Also check out HAC irreducibility test
+
+			self.isGroundField = False
 
 			raise Exception("Not implemented")
 		else:
