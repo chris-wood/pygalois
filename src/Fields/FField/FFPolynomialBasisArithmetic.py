@@ -4,17 +4,19 @@ import sys
 class FFPolynomialBasisArithmetic:
 	''' Class that implements polynomial basis arithmetic for finite fields.
 	'''
-	def __init__(self, field):
-		raise Exception("TODO")
+	def __init__(self, field, baseField):
+		self.field = field
+		self.base = baseField
 
 	def g_add(self, x, y):
 		sum = []
 		index = 0
 		for i in range(len(x) + len(y)):
-			z = (x[i] + y[i]) % self.base
+			# z = (x[i] + y[i]) % self.base
+			z = self.base.op_add(x[i], y[i])
 			sum.insert(0, z)
 			index = index + 1
-		result = FFElement(sum)
+		result = FFElement(self.field, sum)
 		return result
 
 	def g_sub(self, x, y):

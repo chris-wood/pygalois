@@ -1,5 +1,6 @@
 import pickle
 import sys
+from FFPolynomialBasisArithmetic import *
 
 class FF:
 	''' Class for generic finite fields which can support arbitrary extensions
@@ -18,7 +19,7 @@ class FF:
 
 			self.ground = FF(base, 1, None) # Force the base field to be GF(p), where p is the base
 			self.isGroundField = False
-			self.arithmetic = FFPolynomialBasisArithmetic
+			self.arithmetic = FFPolynomialBasisArithmetic(self, self.ground)
 
 
 		elif (type(base) is FF):
