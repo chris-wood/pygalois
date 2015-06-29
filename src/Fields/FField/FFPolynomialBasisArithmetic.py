@@ -1,7 +1,8 @@
 import pickle
 import sys
+from FFArithmetic import *
 
-class FFPolynomialBasisArithmetic:
+class FFPolynomialBasisArithmetic(FFArithmetic):
 	''' Class that implements polynomial basis arithmetic for finite fields.
 	'''
 	def __init__(self, field, baseField):
@@ -33,7 +34,7 @@ class FFPolynomialBasisArithmetic:
 	# 	for i in range(len(x) + len(y)):
 	# 		prod.append(0)
 	# 	for i in range(len(x)):
-	# 		for j in range(len(y)): 
+	# 		for j in range(len(y)):
 	# 			pl = i + j
 	# 			tempProd = 0
 	# 			if (i < len(x) and j < len(y)):
@@ -67,7 +68,7 @@ class FFPolynomialBasisArithmetic:
 	# 		while (N.degree() >= D.degree()):
 	# 			divisor = D.shiftLeft(N.degree() - D.degree()) # find the divisor for the degrees - this is correct
 	# 			Q[N.degree() - D.degree()] = N[N.degree()] / divisor[divisor.degree()]
-	# 			divisor = divisor.scalarMult(Q[N.degree() - D.degree()]) 
+	# 			divisor = divisor.scalarMult(Q[N.degree() - D.degree()])
 	# 			N = self.g_sub(N, divisor)
 	# 		R = N # left over numerator is the remainder...
 	# 		return (Q, R)
@@ -106,7 +107,7 @@ class FFPolynomialBasisArithmetic:
 	# 	val = FFElement([1])
 	# 	exp = bin(k)[2:][::-1] # put the exponent in reverse order
 	# 	if k < 0:
-	# 		raise TypeError() 
+	# 		raise TypeError()
 	# 	else:
 	# 		# for i in range(k):
 	# 		# 	val = self.g_mult(val, x)

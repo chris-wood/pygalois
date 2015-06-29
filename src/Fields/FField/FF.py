@@ -2,7 +2,7 @@ import pickle
 import sys
 from FFPolynomialBasisArithmetic import *
 
-class FF:
+class FF(object):
 	''' Class for generic finite fields which can support arbitrary extensions
 	and arithmetic in different bases.
 	'''
@@ -108,7 +108,7 @@ class FF:
 			return u, v
 		raise Exception("TODO")
 
-	def order(self, g): 
+	def order(self, g):
 		raise Exception("TODO")
 
 	def generators(self):
@@ -135,4 +135,3 @@ class FF:
 
 	def __str__(self):
 		raise Exception("TODO")
-
